@@ -1,6 +1,6 @@
-use tui::widgets::ListState;
+mod event;
 
-pub mod event;
+use ratatui::widgets::ListState;
 
 pub struct StatefulList<T> {
   pub state: ListState,

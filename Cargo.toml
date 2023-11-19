@@ -8,20 +8,20 @@ license = "MIT"
 homepage = "https://github.com/topisani/sidetree"
 
 [dependencies]
-tui = { version = "0.19.0", default-features = false, features = ["termion"]}
-termion = "1.5.6"
-unicode-width = "0.1.9"
-serde = { version = "1.0.144", features = ["derive"] }
+ratatui = { version = "0.24.0", default-features = false, features = ["crossterm"]}
+crossterm = { version = "0.27", features = ["events"] }
+unicode-width = "0.1.11"
+serde = { version = "1.0.192", features = ["derive"] }
 combine = "4.6.6"
-clap = { version = "3.2.17", features = ["derive"] }
+clap = { version = "4.4.8", features = ["derive"] }
 xdg = "2.4.1"
-path-absolutize = "3.0.13"
+path-absolutize = "3.0.14"
 lazy_static = "1.4.0"
-toml = "0.5.9"
-syn = "1.0.99"
-quote = "1.0.21"
-proc-macro2 = "1.0.43"
-tui-textarea = { version = "0.2.0", default-features = false, features = ["termion"] }
+toml = "0.8.8"
+syn = "2.0.39"
+quote = "1.0.33"
+proc-macro2 = "1.0.69"
+tui-textarea = { version = "0.3.1", default-features = false, features = ["crossterm"] }
 
 # https://stackoverflow.com/questions/65813638/how-to-use-proc-macro-in-normal-module
 [lib]

@@ -6,10 +6,11 @@ use std::collections::HashSet;
 use std::iter;
 use std::path::Path;
 use std::path::PathBuf;
-use tui::{
-  buffer::Buffer, layout::Rect, style::Style, text::Span, text::Spans, widgets::List,
+use ratatui::{
+  buffer::Buffer, layout::Rect, style::Style, text::Line, widgets::List,
   widgets::ListItem, widgets::StatefulWidget,
 };
+use ratatui::text::Span;
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Default)]
 pub struct ExpandedPaths {
@@ -229,13 +230,17 @@ pub struct TreeEntryLine {
 
 impl TreeEntryLine {
   fn make_line(&self) -> ListItem {
-    ListItem::new(Spans(
-      iter::once(Span::styled(
+    ListItem::new(Line::from(
+      iter::once(
+        Span::styled(
         "  ".repeat(self.level),
-        self.line.first().map(|(_, s)| *s).unwrap_or_default(),
-      ))
-      .chain(self.line.iter().map(|(x, s)| Span::styled(x, *s)))
-      .collect(),
+          self.line.first().map(|(_, s)| *s).unwrap_or_default(),
+        )
+      )
+      .chain(self.line.iter().map(|(x, s)|
+          Span::styled(x, *s))
+      )
+      .collect::<Vec<_>>(),
     ))
     .style(self.line.last().map(|(_, s)| *s).unwrap_or_default())
   }

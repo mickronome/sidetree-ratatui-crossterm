@@ -1,6 +1,6 @@
 use combine::parser::EasyParser;
 use config_macros::ConfParsable;
-use tui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 
 // Config definition
 #[derive(Default, ConfParsable)]
@@ -156,9 +156,9 @@ mod style_parser {
   use combine::parser::char::*;
   use combine::parser::EasyParser;
   use combine::*;
-  use tui::style::Color;
-  use tui::style::Modifier;
-  use tui::style::Style;
+  use ratatui::style::Color;
+  use ratatui::style::Modifier;
+  use ratatui::style::Style;
 
   pub fn color<'a>() -> impl EasyParser<&'a str, Output = Color> {
     let hex_byte = || {
@@ -270,9 +270,9 @@ pub fn parse_color(input: &str) -> Result<Color, String> {
 #[cfg(test)]
 mod tests {
   use crate::config::*;
-  use tui::style::Color::*;
-  use tui::style::Modifier;
-  use tui::style::Style;
+  use ratatui::style::Color::*;
+  use ratatui::style::Modifier;
+  use ratatui::style::Style;
 
   #[test]
   fn style_parsing() {

@@ -4,12 +4,14 @@ use combine::parser::char::letter;
 use combine::parser::char::string;
 use combine::*;
 use std::collections::HashMap;
-use termion::event::Key;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode::KeypadBegin;
+use crate::app::{KeyPress};
+
 
 pub struct KeyMap {
-  keys: HashMap<Key, Command>,
+  keys: HashMap<KeyPress, Command>,
 }
-
 impl KeyMap {
   pub fn new() -> KeyMap {
     KeyMap {
@@ -17,16 +19,16 @@ impl KeyMap {
     }
   }
 
-  pub fn add_mapping(&mut self, k: Key, c: Command) {
+  pub fn add_mapping(&mut self, k: KeyPress, c: Command) {
     self.keys.insert(k, c);
   }
 
-  pub fn get_mapping(&self, k: Key) -> Option<Command> {
+  pub fn get_mapping(&self, k: KeyPress) -> Option<Command> {
     self.keys.get(&k).cloned()
   }
 }
 
-pub fn parse_key(input: &str) -> Result<Key, easy::ParseError<&str>> {
+pub fn parse_key(input: &str) -> Result<KeyPress, easy::ParseError<&str>> {
   let char_key = || {
     many1(none_of(">".chars())).and_then(|word: String| match word.as_str() {
       "return" => Ok('\n'),
@@ -39,39 +41,44 @@ pub fn parse_key(input: &str) -> Result<Key, easy::ParseError<&str>> {
       "tab" => Ok('\t'),
       c if c.len() == 1 => Ok(c.chars().next().unwrap()),
       &_ => Err(error::UnexpectedParse::Unexpected),
-    })
+    }).map(|c| KeyPress(KeyCode::Char(c),KeyModifiers::NONE))
   };
-  let modifier = || {
+ let modifier = || {
     optional(choice!(
-      attempt(string("a-").map(|_| -> fn(char) -> Key { Key::Alt })),
-      attempt(string("c-").map(|_| -> fn(char) -> Key { Key::Ctrl }))
+      attempt(string("a-").map(|_| -> fn() -> KeyPress {|| {KeyPress(KeyCode::Esc,KeyModifiers::ALT) }})),
+      attempt(string("c-").map(|_| -> fn() -> KeyPress {|| {KeyPress(KeyCode::Esc,KeyModifiers::CONTROL) }}))
     ))
-    .map(|x| x.unwrap_or(Key::Char))
+    .map(|x| x.unwrap_or(|| {KeyPress(KeyCode::Esc,KeyModifiers::NONE)}))
   };
   let non_mod = || {
     many1(letter()).and_then(|word: String| match word.as_str() {
-      "esc" => Ok(Key::Esc),
-      "backtab" => Ok(Key::BackTab),
-      "backspace" => Ok(Key::Backspace),
-      "del" => Ok(Key::Delete),
-      "home" => Ok(Key::Home),
-      "end" => Ok(Key::End),
-      "up" => Ok(Key::Up),
-      "down" => Ok(Key::Down),
-      "left" => Ok(Key::Left),
-      "right" => Ok(Key::Right),
-      "insert" => Ok(Key::Insert),
-      "pageup" => Ok(Key::PageUp),
-      "pagedown" => Ok(Key::PageDown),
+      "esc" => Ok(KeyCode::Esc),
+      "backtab" => Ok(KeyCode::BackTab),
+      "backspace" => Ok(KeyCode::Backspace),
+      "del" => Ok(KeyCode::Delete),
+      "home" => Ok(KeyCode::Home),
+      "end" => Ok(KeyCode::End),
+      "up" => Ok(KeyCode::Up),
+      "down" => Ok(KeyCode::Down),
+      "left" => Ok(KeyCode::Left),
+      "right" => Ok(KeyCode::Right),
+      "insert" => Ok(KeyCode::Insert),
+      "pageup" => Ok(KeyCode::PageUp),
+      "pagedown" => Ok(KeyCode::PageDown),
       &_ => Err(error::UnexpectedParse::Unexpected),
-    })
+    }).map(|kc| KeyPress(kc,KeyModifiers::NONE))
   };
-  let short = || char_key().map(Key::Char);
+  let short = || char_key().map(|c|c);
   let long = || {
     between(
       char('<'),
       char('>'),
-      attempt(modifier().and(char_key()).map(|(f, c)| f(c))).or(non_mod()),
+      attempt(
+        modifier()
+            .and(char_key())
+            .map(
+              |(f, c)| f().charize(c)))
+          .or(non_mod()),
     )
   };
   let parser = long().or(short());
@@ -83,15 +90,16 @@ pub fn parse_key(input: &str) -> Result<Key, easy::ParseError<&str>> {
 mod tests {
   use crate::keymap::parse_key;
 
-  use termion::event::Key;
+  use crossterm::event::{KeyCode, KeyEvent,KeyModifiers};
+  use crate::app::{AltPressed, KeyPress};
 
   #[test]
   fn key_parsing() {
-    assert_eq!(parse_key("a"), Ok(Key::Char('a')));
-    assert_eq!(parse_key("<a>"), Ok(Key::Char('a')));
-    assert_eq!(parse_key("<a-a>"), Ok(Key::Alt('a')));
-    assert_eq!(parse_key("<c-b>"), Ok(Key::Ctrl('b')));
+    assert_eq!(parse_key("a"), Ok(KeyCode::Char('a')));
+    assert_eq!(parse_key("<a>"), Ok(KeyCode::Char('a')));
+    assert_eq!(parse_key("<a-a>"), Ok(KeyPress{ code:KeyCode::Char('a'),alt:AltPressed(true),,..KeyPress::default()}));
+    assert_eq!(parse_key("<c-b>"), Ok(KeyCode::Ctrl('b')));
     assert_eq!(parse_key("<return>"), Ok(Key::Char('\n')));
-    assert_eq!(parse_key("<esc>"), Ok(Key::Esc));
+    assert_eq!(parse_key("<esc>"), Ok(KeyCode::Esc));
   }
 }

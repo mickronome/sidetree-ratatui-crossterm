@@ -14,15 +14,22 @@ use std::{fs::File, path::PathBuf};
 
 use clap::Parser;
 use commands::parse_cmds;
-use std::error::Error;
-use std::io;
-use termion::input::MouseTerminal;
-use termion::raw::IntoRawMode;
-use termion::screen::AlternateScreen;
-use tui::backend::TermionBackend;
-use tui::Terminal;
+use std::{
+  error::Error,
+  io,
+  time::{Duration, Instant},
+};
+use ratatui::backend::{CrosstermBackend};
+use ratatui::Terminal;
 
-use crate::util::event::{Event, Events};
+use crossterm::{
+  event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+  execute,
+  terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::prelude::*;
+
+//use crate::util::event::{Event, Events};
 
 extern crate combine;
 
@@ -32,6 +39,7 @@ extern crate combine;
   author = env!("CARGO_PKG_AUTHORS"),
 )]
 /// An interactive file tree meant to be used as a side panel for terminal text editors
+
 struct Opts {
   /// The base directory to open sidetree to
   #[clap(default_value = ".")]
@@ -69,17 +77,84 @@ fn default_conf_file() -> PathBuf {
   conf_file
 }
 
+pub fn run(opts: &Opts,cache: Cache,tick_rate: Duration, enhanced_graphics: bool) -> Result<(), Box<dyn Error>> {
+  // setup terminal
+  enable_raw_mode()?;
+  let mut stdout = io::stdout();
+
+  crossterm::execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+
+  let backend = CrosstermBackend::new(stdout);
+  let mut terminal = Terminal::new(backend)?;
+
+  // create app and run it
+  let mut app = App::new(opts,cache,enhanced_graphics);
+  let conf_file = opts.config.clone().unwrap_or_else(default_conf_file);
+
+  app.run_script_file(&conf_file)?;
+  if opts.exec.is_some() {
+    app.run_commands(&parse_cmds(&opts.exec.clone().unwrap())?)
+  }
+
+  app.tree.change_root(&app.config, opts.directory.clone());
+
+  if let Some(path) = opts.select.clone() {
+    app.tree.expand_to_path(&path);
+    app.tree.update(&app.config);
+    app.tree.select_path(&path);
+  }
+
+  let res = run_app(&mut terminal, app, tick_rate);
+
+  // restore terminal
+  disable_raw_mode()?;
+  execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+  terminal.show_cursor()?;
+
+  if let Err(err) = res {
+    println!("{err:?}");
+  }
+
+  Ok(())
+}
+fn run_app<B: Backend>(
+  terminal: &mut Terminal<B>,
+  mut app: App,
+  tick_rate: Duration,
+) -> io::Result<()> {
+  let mut last_tick = Instant::now();
+  loop {
+    terminal.draw(|f| app.draw(f))?;
+
+    let timeout = tick_rate.saturating_sub(last_tick.elapsed());
+    if crossterm::event::poll(timeout)? {
+      if let Event::Key(key) = event::read()? {
+        app.on_key(key);
+
+
+      }
+    }
+    if last_tick.elapsed() >= tick_rate {
+      app.tick();
+      last_tick = Instant::now();
+    }
+    if app.exit {
+      if !app.opts.no_cache {
+        app.get_cache().write_file(&Cache::default_file_path())
+      }
+      return Ok(());
+    }
+  }
+}
 fn main() -> Result<(), Box<dyn Error>> {
   let opts = Opts::parse();
 
   // Terminal initialization
-  let stdout = io::stdout().into_raw_mode()?;
-  let stdout = MouseTerminal::from(stdout);
-  let stdout = AlternateScreen::from(stdout);
-  let backend = TermionBackend::new(stdout);
-  let mut terminal = Terminal::new(backend)?;
-
-  let events = Events::new();
+  let tick_rate = Duration::from_millis(250);
 
   let cache = if !opts.no_cache {
     Cache::from_file(&Cache::default_file_path()).expect("Failed to read cache file")
@@ -87,46 +162,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     Cache::default()
   };
 
-  let mut app = App::new(cache);
-  let conf_file = opts.config.unwrap_or_else(default_conf_file);
+    run(&opts, cache, tick_rate, true)?;
 
-  app.run_script_file(&conf_file)?;
-  if opts.exec.is_some() {
-    app.run_commands(&parse_cmds(&opts.exec.unwrap())?)
-  }
-
-  app.tree.change_root(&app.config, opts.directory);
-
-  if let Some(path) = opts.select {
-    app.tree.expand_to_path(&path);
-    app.tree.update(&app.config);
-    app.tree.select_path(&path);
-  }
-
-  loop {
-    terminal.draw(|f| {
-      app.draw(f);
-    })?;
-
-    match events.next()? {
-      Event::Key(key) => {
-        app.on_key(key);
-      }
-      Event::Mouse(mouse) => {
-        app.on_mouse(mouse);
-      }
-      _ => (),
-    }
-
-    app.tick();
-    if app.exit {
-      break;
-    }
-  }
-
-  if !opts.no_cache {
-    app.get_cache().write_file(&Cache::default_file_path())
-  }
 
   Ok(())
 }

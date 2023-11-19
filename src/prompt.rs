@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
 use crate::commands::Command;
-use termion::event::Key;
-use tui::backend::Backend;
-use tui::layout::Rect;
-use tui::text::Span;
-use tui::text::Spans;
-use tui::widgets::Paragraph;
-use tui::Frame;
-use tui_textarea::CursorMove;
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::backend::Backend;
+use ratatui::layout::Rect;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
+use ratatui::Frame;
+use tui_textarea::{CursorMove, Input, Key};
 use tui_textarea::TextArea;
+use crate::app::KeyPress;
 
 pub trait Prompt {
   fn prompt_text(&self) -> &str;
@@ -31,7 +31,13 @@ struct PromptState<'a> {
   history: Vec<String>,
   hist_index: usize,
 }
-
+//pub fn input(&mut self, input: impl Into<Input>) -> bool
+// self.textarea.input(input);
+impl Into<Input> for KeyPress {
+  fn into(self) -> Input {
+    self.to_input()
+  }
+}
 impl<'a> PromptState<'a> {
   pub fn new(prompt: Box<dyn Prompt>, mut history: Vec<String>) -> Self {
     history.insert(0, String::new());
@@ -45,18 +51,18 @@ impl<'a> PromptState<'a> {
     }
   }
   /// Returns true if the prompt should be exited
-  pub fn on_key(&mut self, key: Key) -> (bool, Option<Command>) {
+  pub fn on_key(&mut self, key: KeyPress) -> (bool, Option<Command>) {
     match key {
-      Key::Char('\n') => (true, self.submit()),
-      Key::Up => {
+      KeyPress(KeyCode::Char('\n'),_) => (true, self.submit()),
+      KeyPress(KeyCode::Up, _) => {
         self.walk_history(1);
         (false, None)
       }
-      Key::Down => {
+      KeyPress(KeyCode::Down, _) => {
         self.walk_history(-1);
         (false, None)
       }
-      Key::Esc => (true, self.cancel()),
+      KeyPress(KeyCode::Esc, _) => (true, self.cancel()),
       input => {
         self.textarea.input(input);
         self.history[0] = self.textarea.lines()[0].clone();
@@ -86,10 +92,10 @@ impl<'a> PromptState<'a> {
     cmd
   }
 
-  pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>, rect: Rect) {
+  pub fn draw(&mut self, f: &mut Frame, rect: Rect) {
     let widget = self.textarea.widget();
     let prompt = self.prompt.prompt_text();
-    let text = vec![Spans::from(vec![Span::raw(prompt)])];
+    let text = vec![Line::from(vec![Span::raw(prompt)])];
     let input = Paragraph::new(text);
     let area1 = Rect {
       width: prompt.len() as u16,
@@ -147,7 +153,7 @@ impl<'a> StatusLine<'a> {
 
   /// Handle a key
   /// Return true if the tree should be updated
-  pub fn on_key(&mut self, key: Key) -> (bool, Option<Command>) {
+  pub fn on_key(&mut self, key: KeyPress) -> (bool, Option<Command>) {
     if let Some(p) = &mut self.prompt_state {
       let (exit, cmd) = p.on_key(key);
       if exit {
@@ -170,11 +176,11 @@ impl<'a> StatusLine<'a> {
     self.prompt_state = Some(PromptState::new(prompt, hist));
   }
 
-  pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>, rect: Rect) {
+  pub fn draw(&mut self, f: &mut Frame, rect: Rect) {
     if let Some(prompt) = &mut self.prompt_state {
       prompt.draw(f, rect);
     } else {
-      let text = vec![Spans::from(vec![Span::raw(self.info.info_msg.as_str())])];
+      let text = vec![Line::from(vec![Span::raw(self.info.info_msg.as_str())])];
       let input = Paragraph::new(text);
       f.render_widget(input, rect);
     }

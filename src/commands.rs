@@ -3,7 +3,8 @@ use combine::Parser;
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
-use termion::event::Key;
+use crossterm::event::KeyEvent;
+use crate::app::KeyPress;
 
 #[allow(dead_code)]
 pub struct CmdManager {
@@ -25,7 +26,7 @@ pub enum Command {
   Echo(String),
   Set(String, String),
   Cd(Option<PathBuf>),
-  MapKey(Key, Box<Command>),
+  MapKey(KeyPress, Box<Command>),
   Rename(Option<String>),
   NewFile(Option<String>),
   NewDir(Option<String>),

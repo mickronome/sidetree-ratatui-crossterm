@@ -7,15 +7,18 @@ use crate::file_tree::{FileTree, FileTreeState};
 use crate::keymap::KeyMap;
 use crate::prompt::Prompt;
 use crate::prompt::StatusLine;
-use termion::event::MouseButton;
-use tui::backend::Backend;
-
+use crossterm::event::{KeyCode, KeyModifiers, KeyEvent, MouseEvent,ModifierKeyCode, MouseButton, MouseEventKind};
+use ratatui::backend::Backend;
 use std::path::{Path, PathBuf};
-use termion::event::{Key, MouseEvent};
-use tui::layout::{Constraint, Direction, Layout};
-use tui::Frame;
+use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::Frame;
+use tui_textarea::{Input, Key};
+use crate::Opts;
+
 
 pub struct App<'a> {
+  pub opts:&'a Opts,
+  pub enhanced_graphics: bool,
   pub config: Config,
   pub tree: FileTreeState,
   pub exit: bool,
@@ -23,9 +26,74 @@ pub struct App<'a> {
   pub keymap: KeyMap,
 }
 
+
+#[derive(Debug, Clone, PartialEq,Eq,Hash,Copy)]
+pub struct KeyPress(pub KeyCode,pub KeyModifiers);
+
+impl KeyPress {
+  pub fn modify(&self,modifier:KeyPress)->KeyPress {
+    KeyPress(self.0,modifier.1)
+  }
+  pub fn charize(&self,modifier:KeyPress)->KeyPress {
+    KeyPress(modifier.0,self.1)
+  }
+
+
+  pub fn has_modifier(&self,km:KeyModifiers)->bool {
+    self.1 & km != KeyModifiers::NONE
+  }
+
+  pub fn has_alt(&self)->bool {
+    self.has_modifier(KeyModifiers::ALT)
+  }
+  pub fn has_control(&self)->bool {
+    self.has_modifier(KeyModifiers::CONTROL)
+  }
+
+  pub fn to_input(&self) -> Input {
+    let key = match self.0 {
+      KeyCode::Backspace => {Key::Backspace}
+      KeyCode::Enter => {Key::Enter}
+      KeyCode::Left => {Key::Left}
+      KeyCode::Right => {Key::Right}
+      KeyCode::Up => {Key::Up}
+      KeyCode::Down => {Key::Down}
+      KeyCode::Home => {Key::Home}
+      KeyCode::End => {Key::End}
+      KeyCode::PageUp => {Key::PageUp}
+      KeyCode::PageDown => {Key::PageDown}
+      KeyCode::Tab => {Key::Tab}
+      KeyCode::BackTab => {Key::Null}
+      KeyCode::Delete => {Key::Delete}
+      KeyCode::Insert => {Key::Null}
+      KeyCode::F(t) => {Key::F(t)}
+      KeyCode::Char(t) => {Key::Char(t)}
+      KeyCode::Null => {Key::Null}
+      KeyCode::Esc => {Key::Esc}
+      KeyCode::CapsLock => {Key::Null}
+      KeyCode::ScrollLock => {Key::Null}
+      KeyCode::NumLock => {Key::Null}
+      KeyCode::PrintScreen => {Key::Null}
+      KeyCode::Pause => {Key::Null}
+      KeyCode::Menu => {Key::Null}
+      KeyCode::KeypadBegin => {Key::Null}
+      KeyCode::Media(_) => {Key::Null}
+      KeyCode::Modifier(_) => {Key::Null}
+    };
+    Input{key:key,alt:self.has_alt(),ctrl:self.has_control()}
+  }
+}
+impl From<KeyEvent> for KeyPress {
+   fn from(ke : KeyEvent) -> KeyPress{
+  KeyPress(ke.code,ke.modifiers)
+  }
+}
+
 impl<'a> App<'a> {
-  pub fn new(cache: Cache) -> App<'a> {
+  pub fn new(opts:&'a Opts, cache: Cache, enhanced_graphics:bool) -> App<'a> {
     let mut res = App {
+      opts,
+      enhanced_graphics,
       config: Config::default(),
       tree: FileTreeState::new(PathBuf::from(".")),
       exit: false,
@@ -38,8 +106,10 @@ impl<'a> App<'a> {
   }
 }
 
+
+
 impl<'a> App<'a> {
-  pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>) {
+  pub fn draw(&mut self, f: &mut Frame) {
     let chunks = Layout::default()
       .direction(Direction::Vertical)
       .constraints([Constraint::Min(0), Constraint::Length(1)].as_ref())
@@ -74,10 +144,12 @@ impl<'a> App<'a> {
     if self.statusline.has_focus() {
       return Some(());
     }
-    if let MouseEvent::Press(button, _x, y) = me {
-      match button {
-        MouseButton::Left | MouseButton::Right => {
-          let line = (y - 1) as usize;
+
+    if let MouseEvent { kind, column, row,modifiers } = me {
+      match me.kind {
+
+        MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Down(MouseButton::Right) => {
+          let line = (row - 1) as usize;
           if self.tree.selected_idx() == Some(line) {
             let entry = self.tree.entry().clone();
             if entry.is_dir {
@@ -89,10 +161,10 @@ impl<'a> App<'a> {
             self.tree.select_nth(line);
           }
         }
-        MouseButton::WheelDown => {
+        MouseEventKind::ScrollDown => {
           self.tree.select_next();
         }
-        MouseButton::WheelUp => {
+        MouseEventKind::ScrollUp => {
           self.tree.select_prev();
         }
         _ => {}
@@ -101,7 +173,9 @@ impl<'a> App<'a> {
     Some(())
   }
 
-  pub fn on_key(&mut self, k: Key) -> Option<()> {
+  
+  pub fn on_key(&mut self, _k:KeyEvent ) -> Option<()> {
+    let k = KeyPress::from(_k);
     if self.statusline.has_focus() {
       let (update, cmd) = self.statusline.on_key(k);
       if let Some(cmd) = cmd {
@@ -112,21 +186,21 @@ impl<'a> App<'a> {
       }
       return Some(());
     }
-    if let Some(cmd) = self.keymap.get_mapping(k) {
+    if let Some(cmd) = self.keymap.get_mapping(k.clone()) {
       self.run_command(&cmd);
       return Some(());
     }
     match k {
-      Key::Char('q') => {
+      KeyPress(KeyCode::Char('q'),_) => {
         self.exit = true;
       }
-      Key::Char('j') | Key::Down => {
+      KeyPress(KeyCode::Char('j') | KeyCode::Down,_) => {
         self.tree.select_next();
       }
-      Key::Char('k') | Key::Up => {
+      KeyPress(KeyCode::Char('k') | KeyCode::Up,_ ) => {
         self.tree.select_prev();
       }
-      Key::Char('\n') => {
+      KeyPress(KeyCode::Char('\n'), _,) => {
         let entry = self.tree.entry().clone();
         if entry.is_dir {
           self.tree.toggle_expanded(&entry.path);
@@ -134,7 +208,7 @@ impl<'a> App<'a> {
           self.run_command(&Command::Open(None))
         }
       }
-      Key::Char('l') | Key::Right => {
+      KeyPress(KeyCode::Char('l') | KeyCode::Right, _) => {
         let entry = self.tree.entry().clone();
         if entry.is_dir {
           if !entry.is_expanded() {
@@ -144,7 +218,7 @@ impl<'a> App<'a> {
           }
         }
       }
-      Key::Char('h') | Key::Left => {
+      KeyPress(KeyCode::Char('h') | KeyCode::Left, _) => {
         let entry = self.tree.entry().clone();
         if entry.is_expanded() {
           self.tree.collapse(&entry.path);
@@ -152,16 +226,16 @@ impl<'a> App<'a> {
           self.tree.select_up();
         }
       }
-      Key::Char('!') => {
+      KeyPress(KeyCode::Char('!'), _) => {
         self.statusline.prompt(Box::new(ShellPrompt {}));
       }
-      Key::Char(':') => {
+      KeyPress(KeyCode::Char(':'), _) => {
         self.statusline.prompt(Box::new(CmdPrompt {}));
       }
-      Key::Alt('l') => {
+      KeyPress(KeyCode::Char('l'), m) if (m & KeyModifiers::ALT) != KeyModifiers::NONE => {
         self.run_command(&Command::Cd(None));
       }
-      Key::Char('.') => {
+      KeyPress(KeyCode::Char('.'), _) => {
         self.config.show_hidden = !self.config.show_hidden;
       }
       _ => {}
