@@ -1,4 +1,20 @@
+
+## This is an ugly hack by a rust n00b to get the cli app running under ratatui+crossterm.
+Since I am impatient and hit an issue while building it 'as is' and tui-rs isn't maintained,
+I decided to move on an "brute-force" port it to the maintained fork ratatui.
+For which crossterm appear to be the recommended backend.
+
+In short [topisani](https://github.com/topisani) deserves all the credit,
+and for those parts I added, consider the below statement before you choose to use it:
+
+## When it breaks, you get to pieces.
+
+Below follows the README.md from [topisani/sidetree]([topisani](https://github.com/topisani/sidetree)
+at the time of my fork.
+---
+
 # A TUI File tree panel
+
 ![image](https://user-images.githubusercontent.com/3133596/128500582-5682d56c-7f26-4aa1-a3a5-33a0158fcddb.png)
 
 Built for integration with [kakoune](https://github.com/mawww/kakoune), but with a little
