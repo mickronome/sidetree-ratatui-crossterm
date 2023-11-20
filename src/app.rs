@@ -79,7 +79,10 @@ impl KeyPress {
       KeyCode::Media(_) => {Key::Null}
       KeyCode::Modifier(_) => {Key::Null}
     };
-    Input{key:key,alt:self.has_alt(),ctrl:self.has_control()}
+    Input{key:key,
+      alt:self.has_alt(),
+      ctrl:self.has_control(),
+      shift:self.has_modifier(KeyModifiers::SHIFT)}
   }
 }
 impl From<KeyEvent> for KeyPress {
