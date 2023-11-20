@@ -23,13 +23,11 @@ use ratatui::backend::{CrosstermBackend};
 use ratatui::Terminal;
 
 use crossterm::{
-  event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+  event::{self, DisableMouseCapture, EnableMouseCapture, Event, },
   execute,
   terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::prelude::*;
-
-//use crate::util::event::{Event, Events};
 
 extern crate combine;
 
@@ -40,7 +38,7 @@ extern crate combine;
 )]
 /// An interactive file tree meant to be used as a side panel for terminal text editors
 
-struct Opts {
+pub struct Opts {
   /// The base directory to open sidetree to
   #[clap(default_value = ".")]
   directory: PathBuf,
@@ -131,11 +129,11 @@ fn run_app<B: Backend>(
     terminal.draw(|f| app.draw(f))?;
 
     let timeout = tick_rate.saturating_sub(last_tick.elapsed());
-    if crossterm::event::poll(timeout)? {
+    if event::poll(timeout)? {
       if let Event::Key(key) = event::read()? {
         app.on_key(key);
-
-
+      } else if let Event::Mouse(mouse) = event::read()? {
+        app.on_mouse(mouse);
       }
     }
     if last_tick.elapsed() >= tick_rate {

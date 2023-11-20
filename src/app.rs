@@ -7,8 +7,7 @@ use crate::file_tree::{FileTree, FileTreeState};
 use crate::keymap::KeyMap;
 use crate::prompt::Prompt;
 use crate::prompt::StatusLine;
-use crossterm::event::{KeyCode, KeyModifiers, KeyEvent, MouseEvent,ModifierKeyCode, MouseButton, MouseEventKind};
-use ratatui::backend::Backend;
+use crossterm::event::{KeyCode, KeyModifiers, KeyEvent, MouseEvent, MouseButton, MouseEventKind};
 use std::path::{Path, PathBuf};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::Frame;
@@ -31,9 +30,9 @@ pub struct App<'a> {
 pub struct KeyPress(pub KeyCode,pub KeyModifiers);
 
 impl KeyPress {
-  pub fn modify(&self,modifier:KeyPress)->KeyPress {
-    KeyPress(self.0,modifier.1)
-  }
+  //pub fn modify(&self,modifier:KeyPress)->KeyPress {
+  //  KeyPress(self.0,modifier.1)
+  //}
   pub fn charize(&self,modifier:KeyPress)->KeyPress {
     KeyPress(modifier.0,self.1)
   }
@@ -88,7 +87,17 @@ impl From<KeyEvent> for KeyPress {
   KeyPress(ke.code,ke.modifiers)
   }
 }
+impl From<char> for KeyPress {
+  fn from(c: char) -> KeyPress {
+    KeyPress(KeyCode::Char(c), KeyModifiers::NONE)
+  }
+}
 
+impl From<KeyCode> for KeyPress {
+  fn from(kc: KeyCode) -> KeyPress {
+    KeyPress(kc, KeyModifiers::NONE)
+  }
+}
 impl<'a> App<'a> {
   pub fn new(opts:&'a Opts, cache: Cache, enhanced_graphics:bool) -> App<'a> {
     let mut res = App {
@@ -145,11 +154,11 @@ impl<'a> App<'a> {
       return Some(());
     }
 
-    if let MouseEvent { kind, column, row,modifiers } = me {
+
       match me.kind {
 
         MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Down(MouseButton::Right) => {
-          let line = (row - 1) as usize;
+          let line = (me.row - 1) as usize;
           if self.tree.selected_idx() == Some(line) {
             let entry = self.tree.entry().clone();
             if entry.is_dir {
@@ -168,7 +177,7 @@ impl<'a> App<'a> {
           self.tree.select_prev();
         }
         _ => {}
-      }
+
     };
     Some(())
   }
@@ -186,10 +195,13 @@ impl<'a> App<'a> {
       }
       return Some(());
     }
-    if let Some(cmd) = self.keymap.get_mapping(k.clone()) {
-      self.run_command(&cmd);
-      return Some(());
-    }
+    self.keymap.get_mapping(
+      k.clone())
+        .and_then(|cmd| {
+          self.run_command(&cmd);
+                      return Some(());
+        });
+
     match k {
       KeyPress(KeyCode::Char('q'),_) => {
         self.exit = true;
@@ -208,6 +220,10 @@ impl<'a> App<'a> {
           self.run_command(&Command::Open(None))
         }
       }
+      KeyPress(KeyCode::Char('l'), m) if (m & KeyModifiers::ALT) == KeyModifiers::NONE => {
+        self.run_command(&Command::Cd(None));
+      }
+
       KeyPress(KeyCode::Char('l') | KeyCode::Right, _) => {
         let entry = self.tree.entry().clone();
         if entry.is_dir {
@@ -231,9 +247,6 @@ impl<'a> App<'a> {
       }
       KeyPress(KeyCode::Char(':'), _) => {
         self.statusline.prompt(Box::new(CmdPrompt {}));
-      }
-      KeyPress(KeyCode::Char('l'), m) if (m & KeyModifiers::ALT) != KeyModifiers::NONE => {
-        self.run_command(&Command::Cd(None));
       }
       KeyPress(KeyCode::Char('.'), _) => {
         self.config.show_hidden = !self.config.show_hidden;

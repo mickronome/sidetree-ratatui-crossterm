@@ -3,7 +3,6 @@ use combine::Parser;
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
-use crossterm::event::KeyEvent;
 use crate::app::KeyPress;
 
 #[allow(dead_code)]

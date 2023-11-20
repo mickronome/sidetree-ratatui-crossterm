@@ -1,8 +1,9 @@
+/*
 use std::io;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
-/*
+
   pub enum Event<A, B> {
     Key(A),
     Mouse(B),

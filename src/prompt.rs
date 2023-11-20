@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
 use crate::commands::Command;
-use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::backend::Backend;
+use crossterm::event::{KeyCode};
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
-use tui_textarea::{CursorMove, Input, Key};
+use tui_textarea::{CursorMove, Input};
 use tui_textarea::TextArea;
 use crate::app::KeyPress;
 
@@ -17,7 +16,7 @@ pub trait Prompt {
   fn on_cancel(&mut self) -> Option<Command> {
     None
   }
-  fn on_complete(&mut self, input: &str) -> Vec<String> {
+  fn on_complete(&mut self, _: &str) -> Vec<String> {
     Vec::new()
   }
   fn init_text(&self) -> String {
@@ -186,6 +185,7 @@ impl<'a> StatusLine<'a> {
     }
   }
   
+  /*
   pub fn cancel_prompt(&mut self) -> Option<Command> {
     if let Some(p) = &mut self.prompt_state {
       let res = p.cancel();
@@ -194,4 +194,5 @@ impl<'a> StatusLine<'a> {
     }
     None
   }
+   */
 }

@@ -4,8 +4,7 @@ use combine::parser::char::letter;
 use combine::parser::char::string;
 use combine::*;
 use std::collections::HashMap;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use crossterm::event::KeyCode::KeypadBegin;
+use crossterm::event::{KeyCode, KeyModifiers};
 use crate::app::{KeyPress};
 
 
@@ -90,16 +89,17 @@ pub fn parse_key(input: &str) -> Result<KeyPress, easy::ParseError<&str>> {
 mod tests {
   use crate::keymap::parse_key;
 
-  use crossterm::event::{KeyCode, KeyEvent,KeyModifiers};
-  use crate::app::{AltPressed, KeyPress};
+  use crossterm::event::{KeyCode,KeyModifiers};
+  use crate::app::KeyPress;
+
 
   #[test]
   fn key_parsing() {
-    assert_eq!(parse_key("a"), Ok(KeyCode::Char('a')));
-    assert_eq!(parse_key("<a>"), Ok(KeyCode::Char('a')));
-    assert_eq!(parse_key("<a-a>"), Ok(KeyPress{ code:KeyCode::Char('a'),alt:AltPressed(true),,..KeyPress::default()}));
-    assert_eq!(parse_key("<c-b>"), Ok(KeyCode::Ctrl('b')));
-    assert_eq!(parse_key("<return>"), Ok(Key::Char('\n')));
-    assert_eq!(parse_key("<esc>"), Ok(KeyCode::Esc));
+    assert_eq!(parse_key("a"), Ok(KeyPress::from('a')));
+    assert_eq!(parse_key("<a>"), Ok(KeyPress::from('a')));
+    assert_eq!(parse_key("<a-a>"), Ok(KeyPress(KeyCode::Char('a'),KeyModifiers::ALT)));
+    assert_eq!(parse_key("<c-b>"), Ok(KeyPress(KeyCode::Char('b'),KeyModifiers::CONTROL)));
+    assert_eq!(parse_key("<return>"), Ok(KeyPress::from('\n')));
+    assert_eq!(parse_key("<esc>"), Ok(KeyPress::from(KeyCode::Esc)));
   }
 }
